@@ -87,7 +87,7 @@ const TsToJs: NextPage = () => {
         </button>
 
         {outputCode !== "" ? (
-          <div>consume time: {Math.floor(time)}sm</div>
+          <div>consume time: {Math.floor(time)}ms</div>
         ) : null}
       </header>
 
