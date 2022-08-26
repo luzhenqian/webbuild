@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { transformSync as babelTransformSync } from "@babel/core";
-import { transformSync as SWCTransformSync } from "@swc/core";
+import { transformSync as swcTransformSync } from "@swc/core";
 
 import { Response } from "../../../../shared/types";
 import { perf } from "../../../../shared/perf";
@@ -14,9 +14,9 @@ export default function handler(
   let transFn = null;
   if (compiler === "swc") {
     transFn = () =>
-      SWCTransformSync(code, {
+      swcTransformSync(code, {
         jsc: {
-          target: "es2022",
+          target: "es5",
         },
       });
   } else {

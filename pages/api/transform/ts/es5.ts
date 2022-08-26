@@ -13,11 +13,20 @@ export default function handler(
 
   let transFn = null;
   if (compiler === "swc") {
-    transFn = () => SWCTransformSync(code, {});
+    transFn = () =>
+      SWCTransformSync(code, {
+        jsc: {
+          parser: {
+            syntax: "typescript",
+          },
+          target: "es2022",
+        },
+      });
   } else {
     transFn = () =>
       babelTransformSync(code, {
         presets: ["@babel/preset-env", "@babel/preset-typescript"],
+        filename: "file.ts",
       });
   }
 

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { transformSync as babelTransformSync } from "@babel/core";
 import { transformSync as SWCTransformSync } from "@swc/core";
+import { transformSync as esbuildTransformSync } from "esbuild";
 
 import { Response } from "../../../../shared/types";
 import { perf } from "../../../../shared/perf";
@@ -21,6 +22,12 @@ export default function handler(
           },
           target: "es2022",
         },
+      });
+  } else if (compiler === "esbuild") {
+    transFn = () =>
+      esbuildTransformSync(code, {
+        target: "es2022",
+        loader: "ts",
       });
   } else {
     transFn = () =>
