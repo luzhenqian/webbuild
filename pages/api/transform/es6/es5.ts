@@ -22,7 +22,7 @@ export default function handler(
   } else {
     transFn = () =>
       babelTransformSync(code, {
-        presets: ["@babel/preset-env"],
+        presets: [require("@babel/preset-env")],
       });
   }
 

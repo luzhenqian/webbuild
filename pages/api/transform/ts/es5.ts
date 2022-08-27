@@ -25,7 +25,10 @@ export default function handler(
   } else {
     transFn = () =>
       babelTransformSync(code, {
-        presets: ["@babel/preset-env", "@babel/preset-typescript"],
+        presets: [
+          require("@babel/preset-env"),
+          require("@babel/preset-typescript"),
+        ],
         filename: "file.ts",
       });
   }
