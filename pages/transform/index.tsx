@@ -8,9 +8,10 @@ import {
   languageConfig,
   languages,
 } from "../../shared/config";
+import { Button } from "../../components/Button";
 
 const defLang = languages[0];
-const TsToJs: NextPage = () => {
+const Transform: NextPage = () => {
   const editorRef = useRef<any>(null);
   const [outputCode, setOutputCode] = useState("");
   const [defaultCode, setDefaultCode] = useState("");
@@ -69,9 +70,7 @@ const TsToJs: NextPage = () => {
               <option key={compiler}>{compiler}</option>
             ))}
         </select>
-        <button
-          type="button"
-          className="border border-gray-400 py-1 px-2 rounded-sm"
+        <Button
           onClick={() =>
             axios({
               url: `/api/transform/${originLang}/${targetLang}`,
@@ -84,7 +83,7 @@ const TsToJs: NextPage = () => {
           }
         >
           transform
-        </button>
+        </Button>
 
         {outputCode !== "" ? (
           <div>consume time: {Math.floor(time)}ms</div>
@@ -107,4 +106,4 @@ const TsToJs: NextPage = () => {
   );
 };
 
-export default TsToJs;
+export default Transform;

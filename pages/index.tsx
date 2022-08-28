@@ -24,10 +24,17 @@ const Home: NextPage = () => {
         <div className={styles.grid}>
           <Link href="/transform" passHref={true}>
             <a className={styles.card}>
-              <h2>JS/TS/JSX/TSX Transform &rarr;</h2>
+              <h2>Transform JS/TS/JSX/TSX &rarr;</h2>
               <p>
                 Compare the differences between Babel, SWC, tsc and esbuild.
               </p>
+            </a>
+          </Link>
+
+          <Link href="/compress-image" passHref={true}>
+            <a className={styles.card}>
+              <h2>Compress Image &rarr;</h2>
+              <p>Compress the image.</p>
             </a>
           </Link>
 

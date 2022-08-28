@@ -1,6 +1,6 @@
-export function perf(fn: () => { code: string }) {
+export function perf(fn: Function) {
   const start = performance.now();
-  const response = fn();  
+  const response = fn();
   const end = performance.now();
-  return { code: response.code || "", time: end - start };
+  return { ...response, time: end - start };
 }
