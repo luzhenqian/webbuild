@@ -3,9 +3,13 @@ import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import { FileUploader } from "react-drag-drop-files";
 import throttle from "lodash/throttle";
+import { nanoid } from "nanoid";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import { Button } from "../../components/Button";
 
 type Compressed = {
+  id: string;
   fileName: string;
   url: string;
   size: number;
@@ -16,6 +20,7 @@ type Files = (File & {
     webp: boolean;
     compressor: string;
   };
+  id: string;
   src: string;
   compressed?: Compressed;
 })[];
@@ -33,6 +38,7 @@ const Transform: NextPage = () => {
     newFiles = Array.from(newFiles) as Files;
 
     newFiles.forEach((file) => {
+      file.id = nanoid();
       file.src = URL.createObjectURL(file);
       file.config = {
         webp: false,
@@ -53,6 +59,15 @@ const Transform: NextPage = () => {
   }, [files]);
 
   const clearAll = () => setFiles([]);
+  const ratio = (beforeSize: number, afterSize: number) =>
+    ~Math.floor(100 - (afterSize / beforeSize) * 100);
+  const beforeSize = Math.floor(
+    files.reduce((acc, cur) => acc + cur.size, 0) / 1000
+  );
+  const afterSize = Math.floor(
+    files.reduce((acc, cur) => acc + (cur?.compressed?.size || 0), 0) / 1000
+  );
+  const totalReduced = ~Math.floor(100 - (afterSize / beforeSize) * 100);
   return (
     <div className="w-[1200px] mx-auto py-4">
       <header className="flex flex-col w-full gap-2 mb-4">
@@ -67,11 +82,7 @@ const Transform: NextPage = () => {
           <div className="flex justify-end gap-2">
             <Button onClick={clearAll}>Clear All</Button>
             {files.length > 1 && (
-              <Button
-              // onClick={handleChange}
-              >
-                Download All
-              </Button>
+              <Button onClick={() => downloadFiles(files)}>Download All</Button>
             )}
           </div>
         )}
@@ -116,9 +127,7 @@ const Transform: NextPage = () => {
                   </div>
 
                   <div className="flex-1 text-center text-xl font-bold text-green-600">
-                    -
-                    {Math.floor(100 - (file.compressed.size / file.size) * 100)}
-                    %
+                    {ratio(file.size, file.compressed.size)}%
                   </div>
 
                   <div className="flex items-center gap-1 w-40">
@@ -140,7 +149,15 @@ const Transform: NextPage = () => {
                   </div>
 
                   <div className="flex items-center gap-1 w-32 justify-center">
-                    <input type={"checkbox"} />
+                    <input
+                      type={"checkbox"}
+                      onChange={throttle((evt) => {
+                        file.config.webp = evt.target.checked;
+                        compress([file]).then((data) => {
+                          setFiles((files) => fillCompressed(files, data));
+                        });
+                      }, 5_00)}
+                    />
                   </div>
 
                   <div className="flex items-center gap-1 w-32 justify-center">
@@ -153,7 +170,10 @@ const Transform: NextPage = () => {
 
                   <div className="w-24">
                     <Button className="w-full !p-1">
-                      <a href={file.compressed.url} download={file.name}>
+                      <a
+                        href={file.compressed.url}
+                        download={file.compressed.fileName}
+                      >
                         download
                       </a>
                     </Button>
@@ -165,6 +185,23 @@ const Transform: NextPage = () => {
             </div>
           ))}
         </div>
+
+        {files.length > 0 && (
+          <div className="flex items-center gap-4 justify-end mt-4 text-lg font-semibold">
+            <div>
+              <span>
+                {beforeSize}
+                kb
+              </span>
+              <span className="text-green-600">
+                {" "}
+                &rarr; {afterSize}
+                kb
+              </span>
+            </div>
+            <div>Total Reduced: {totalReduced}% </div>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -172,15 +209,10 @@ const Transform: NextPage = () => {
 
 export default Transform;
 
-async function compress(newFiles: Files): Promise<
-  {
-    fileName: string;
-    url: string;
-    size: number;
-  }[]
-> {
+async function compress(newFiles: Files): Promise<Compressed[]> {
   let formData = new FormData();
   newFiles.forEach((file, i) => {
+    formData.append(`id-${i}`, file.id);
     formData.append(`file-${i}`, file);
     formData.append(`config-${i}`, JSON.stringify(file.config));
   });
@@ -194,14 +226,17 @@ async function compress(newFiles: Files): Promise<
     resolve(
       (response.data as any[]).map(
         ({
+          id,
           fileName,
           data,
           size,
         }: {
+          id: string;
           fileName: string;
           data: any;
           size: number;
         }) => ({
+          id,
           fileName,
           url: `data:image/png;base64,${toBase64(data.data)}`,
           size,
@@ -215,10 +250,24 @@ const fillCompressed = (files: Files, data: Compressed[]) => {
   const cloneFiles = [...files];
 
   cloneFiles.forEach((file) => {
-    const item = data.find((d) => d.fileName === file.name);
+    const item = data.find((d) => d.id === file.id);
+
     if (item) {
       file.compressed = item;
     }
   });
   return cloneFiles;
+};
+
+const downloadFiles = (files: Files) => {
+  const zip = new JSZip();
+
+  const img = zip.folder("webbuild.me-compress-image");
+  files.forEach((file) => {
+    img?.file(file.name, file, { base64: true });
+  });
+
+  zip.generateAsync({ type: "blob" }).then(function (content) {
+    saveAs(content, "webbuild.me-compress-image.zip");
+  });
 };

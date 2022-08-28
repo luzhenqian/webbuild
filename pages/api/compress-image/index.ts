@@ -3,13 +3,17 @@ import sharp from "sharp";
 import { perf } from "../../../shared/perf";
 import formidable, { File } from "formidable";
 
+// !REFACTOR
+type FileConfig = {
+  quality: number;
+  webp: boolean;
+  compressor: "sharp" | "imagemin" | "jimp" | "gm";
+} | null;
+
 type Files = {
+  id: string;
   file: File | null;
-  config: {
-    quality: number;
-    webp: boolean;
-    compressor: "sharp" | "imagemin" | "jimp" | "gm";
-  } | null;
+  config: FileConfig;
 }[];
 export default async function handler(
   req: NextApiRequest,
@@ -23,6 +27,7 @@ export default async function handler(
       const idx = Number(field.split("-")[1]);
       if (!files[idx]) {
         files[idx] = {
+          id: "",
           file: null,
           config: null,
         };
@@ -30,14 +35,28 @@ export default async function handler(
       files[idx].file = file;
     });
     form.on("field", (field, value) => {
-      const idx = Number(field.split("-")[1]);
-      if (!files[idx]) {
-        files[idx] = {
-          file: null,
-          config: null,
-        };
+      if (/^id/.test(field)) {
+        const idx = Number(field.split("-")[1]);
+        if (!files[idx]) {
+          files[idx] = {
+            id: "",
+            file: null,
+            config: null,
+          };
+        }
+        files[idx].id = value;
       }
-      files[idx].config = JSON.parse(value);
+      if (/^config/.test(field)) {
+        const idx = Number(field.split("-")[1]);
+        if (!files[idx]) {
+          files[idx] = {
+            id: "",
+            file: null,
+            config: null,
+          };
+        }
+        files[idx].config = JSON.parse(value);
+      }
     });
     form.on("end", () => {
       resolve(files);
@@ -49,42 +68,9 @@ export default async function handler(
   });
 
   const ret = await Promise.all(
-    (files as { file: File; config: any }[]).map(
-      async ({ file, config }): Promise<any> =>
-        await new Promise((resolve, reject) => {
-          if (file.mimetype === "image/png") {
-            sharp(file.filepath)
-              .png({
-                quality: config.quality,
-                compressionLevel: 9,
-                force: true,
-              })
-              .toBuffer((err, buffer, info) => {
-                if (err) return reject(err);
-                resolve({
-                  fileName: file.originalFilename,
-                  data: buffer,
-                  size: buffer.length,
-                });
-              });
-          } else if (
-            file.mimetype === "image/jpg" ||
-            file.mimetype === "image/jpeg"
-          ) {
-            sharp(file.filepath)
-              .jpeg({ quality: config.quality, force: true })
-              .toBuffer((err, buffer, info) => {
-                if (err) return reject(err);
-                resolve({
-                  fileName: file.originalFilename,
-                  data: buffer,
-                  size: buffer.length,
-                });
-              });
-          } else {
-            reject("Unsupported file type");
-          }
-        })
+    (files as { id: string; file: File; config: any }[]).map(
+      async ({ id, file, config }): Promise<any> =>
+        await compress(id, file, config)
     )
   );
   let transFn = null;
@@ -98,9 +84,91 @@ export default async function handler(
   res.status(200).json(ret);
 }
 
-/* Don't miss that! */
+// ! Don't miss that!
 export const config: NextConfig = {
   api: {
     bodyParser: false,
   },
 };
+
+type Compressed = {
+  id: string;
+  fileName: string;
+  data: Buffer;
+  size: Number;
+};
+
+async function compress(
+  id: string,
+  file: File,
+  config: FileConfig
+): Promise<Compressed> {
+  return new Promise((resolve, reject) => {
+    if (!config)
+      config = {
+        quality: 80,
+        webp: false,
+        compressor: "sharp",
+      };
+    if (config.compressor === "sharp") {
+      const _s = sharp(file.filepath);
+      if (config.webp) {
+        _s.webp({ quality: config.quality, force: true }).toBuffer(
+          (err, buffer, info) => {
+            if (err) return reject(err);
+            const filename = file.originalFilename;
+            resolve({
+              id,
+              fileName: filename
+                ? filename.replace(/(.png)|(.jpg)|(.jpeg)/g, ".webp")
+                : "file.webp",
+              data: buffer,
+              size: buffer.length,
+            });
+          }
+        );
+        return;
+      }
+      if (file.mimetype === "image/png") {
+        _s.png({
+          quality: config.quality,
+          compressionLevel: 9,
+          force: true,
+        }).toBuffer((err, buffer, info) => {
+          if (err) return reject(err);
+          resolve({
+            id,
+            fileName: file.originalFilename
+              ? file.originalFilename.replace(
+                  /(\.png)|(\.jpg)|(\.jpeg)/,
+                  ".png"
+                )
+              : "file.png",
+            data: buffer,
+            size: buffer.length,
+          });
+        });
+      } else if (
+        file.mimetype === "image/jpg" ||
+        file.mimetype === "image/jpeg"
+      ) {
+        _s.jpeg({ quality: config.quality, force: true }).toBuffer(
+          (err, buffer, info) => {
+            if (err) return reject(err);
+            resolve({
+              id,
+              fileName: file.originalFilename
+                ? file.originalFilename.replace(
+                    /(\.png)|(\.jpg)|(\.jpeg)/,
+                    ".jpeg"
+                  )
+                : "file.jpeg",
+              data: buffer,
+              size: buffer.length,
+            });
+          }
+        );
+      }
+    }
+  });
+}
