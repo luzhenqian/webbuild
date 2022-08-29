@@ -259,15 +259,22 @@ const fillCompressed = (files: Files, data: Compressed[]) => {
   return cloneFiles;
 };
 
-const downloadFiles = (files: Files) => {
+const downloadFiles = async (files: Files) => {
   const zip = new JSZip();
 
   const img = zip.folder("webbuild.me-compress-image");
-  files.forEach((file) => {
-    img?.file(file.name, file, { base64: true });
-  });
+  await Promise.all(
+    files.map(async (file): Promise<any> => {
+      if (file.compressed) {
+        const res = await fetch(file.compressed?.url);
+        img?.file(file.compressed.fileName, res.blob(), { base64: true });
+        return new Promise<any>((resolve, reject) => {
+          resolve(null);
+        });
+      }
+    })
+  );
 
-  zip.generateAsync({ type: "blob" }).then(function (content) {
-    saveAs(content, "webbuild.me-compress-image.zip");
-  });
+  const content = await zip.generateAsync({ type: "blob" });
+  saveAs(content, "webbuild.me-compress-image.zip");
 };
