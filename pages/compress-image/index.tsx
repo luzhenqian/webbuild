@@ -85,12 +85,6 @@ const Transform: NextPage = () => {
   );
 
   const imageCompareRef = useRef<any>();
-  useOnClickOutside(imageCompareRef, () => {
-    console.log(111222);
-
-    setBeforeUrl("");
-    setAfterUrl("");
-  });
 
   const totalReduced = ~Math.floor(100 - (afterSize / beforeSize) * 100);
   return (
