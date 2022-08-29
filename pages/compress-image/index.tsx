@@ -6,6 +6,7 @@ import throttle from "lodash/throttle";
 import { nanoid } from "nanoid";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import "image-compare-viewer/dist/image-compare-viewer.min.css";
 import { Button } from "../../components/Button";
 
 type Compressed = {
@@ -24,6 +25,7 @@ type Files = (File & {
   src: string;
   compressed?: Compressed;
   loading: boolean;
+  compare: boolean;
 })[];
 
 const fileTypes = ["JPG", "JPEG", "PNG"];
@@ -35,6 +37,8 @@ const toBase64 = (arr: Buffer) => {
 const Transform: NextPage = () => {
   const [files, setFiles] = useState<Files>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [beforeUrl, setBeforeUrl] = useState<string>("");
+  const [afterUrl, setAfterUrl] = useState<string>("");
 
   const handleChange = (newFiles: Files) => {
     newFiles = Array.from(newFiles) as Files;
@@ -48,6 +52,7 @@ const Transform: NextPage = () => {
         quality: 80,
         compressor: "sharp",
       };
+      file.compare = false;
     });
 
     setLoading(true);
@@ -60,8 +65,14 @@ const Transform: NextPage = () => {
   };
 
   useEffect(() => {
-    return () => files.forEach((file) => URL.revokeObjectURL(file.src));
-  }, [files]);
+    if (typeof window !== "undefined" && beforeUrl && afterUrl) {
+      const el = document.querySelector(".image-compare");
+      // @ts-ignore
+      import("image-compare-viewer").then(({ default: ImageCompare }) => {
+        new (ImageCompare as any)(el).mount();
+      });
+    }
+  }, [beforeUrl, afterUrl]);
 
   const clearAll = () => setFiles([]);
   const ratio = (beforeSize: number, afterSize: number) =>
@@ -72,6 +83,15 @@ const Transform: NextPage = () => {
   const afterSize = Math.floor(
     files.reduce((acc, cur) => acc + (cur?.compressed?.size || 0), 0) / 1000
   );
+
+  const imageCompareRef = useRef<any>();
+  useOnClickOutside(imageCompareRef, () => {
+    console.log(111222);
+
+    setBeforeUrl("");
+    setAfterUrl("");
+  });
+
   const totalReduced = ~Math.floor(100 - (afterSize / beforeSize) * 100);
   return (
     <div className="w-full mx-auto p-4 md:py-4 md:w-[1200px]">
@@ -106,12 +126,46 @@ const Transform: NextPage = () => {
               <div className="w-16 md:w-24">action</div>
             </div>
           ) : null}
-          {files.map((file) => (
+
+          <div
+            className="fixed flex w-screen h-screen top-0 border bottom-0 left-0 right-0 justify-center items-center glass-bg"
+            style={{ display: beforeUrl && afterUrl ? "flex" : "none" }}
+            onClick={(evt) => {
+              if (imageCompareRef.current) {
+                const target = evt.target as HTMLElement;
+                if (
+                  (imageCompareRef.current as HTMLDivElement).contains(target)
+                ) {
+                  return;
+                }
+                setBeforeUrl("");
+                setAfterUrl("");
+              }
+            }}
+          >
+            <div
+              ref={imageCompareRef}
+              className="image-compare w-[80%] max-h-full max-w-full flex"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={beforeUrl} alt="" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={afterUrl} alt="" />
+            </div>
+          </div>
+
+          {files.map((file, i) => (
             <div key={file.name} className="flex gap-1 md:gap-4 items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={file.src}
                 alt={file.name}
                 className="w-20 h-12 rounded-sm object-contain"
+                onClick={() => {
+                  if (!file.compressed) return;
+                  setBeforeUrl(file.src);
+                  setAfterUrl(file.compressed?.url || "");
+                }}
               />
 
               {file.compressed && !file.loading ? (
@@ -123,6 +177,7 @@ const Transform: NextPage = () => {
                     >
                       {file.name}
                     </div>
+
                     <div>
                       {Math.floor(file.size / 1000)} kb
                       <span className="text-green-600">

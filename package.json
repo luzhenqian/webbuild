@@ -13,6 +13,7 @@
     "axios": "^0.27.2",
     "esbuild": "^0.15.5",
     "file-saver": "^2.0.5",
+    "image-compare-viewer": "^1.5.0",
     "jszip": "^3.10.1",
     "lodash": "^4.17.21",
     "next": "12.2.5",
