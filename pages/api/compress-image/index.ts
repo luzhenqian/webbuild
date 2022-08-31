@@ -224,7 +224,6 @@ interface Compressor {
 const useJimp: Compressor = async (img: File, config: Config) => {
   return (await Jimp.read(img.filepath))
     .quality(config.quality)
-    .greyscale()
     .getBufferAsync(img.mimetype as string);
 };
 

@@ -46,10 +46,6 @@ const compressor = [
     name: "imagemin",
     supportedWebp: true,
   },
-  // {
-  //   name: "sharp",
-  //   supportedWebp: true,
-  // },
 ];
 
 const Transform: NextPage = () => {
@@ -255,7 +251,6 @@ const Transform: NextPage = () => {
                       <option>sharp</option>
                       <option>jimp</option>
                       <option>imagemin</option>
-                      <option disabled>compression</option>
                     </select>
                   </div>
 
