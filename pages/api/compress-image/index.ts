@@ -1,6 +1,11 @@
 import type { NextApiRequest, NextApiResponse, NextConfig } from "next";
 import sharp from "sharp";
 import Jimp from "jimp";
+import imagemin, { Result } from "imagemin";
+import imageminMozjpeg from "imagemin-mozjpeg";
+import imageminPngquant from "imagemin-pngquant";
+import imageminWebp from "imagemin-webp";
+
 import { perf } from "../../../shared/perf";
 import formidable, { File } from "formidable";
 
@@ -105,6 +110,20 @@ type Compressed = {
   size: Number;
 };
 
+const resolveCompress = (
+  resolve: Function,
+  { id, filename }: { id: string; filename: string },
+  buf: Buffer
+) =>
+  resolve({
+    id,
+    fileName: filename
+      ? filename.replace(/(.png)|(.jpg)|(.jpeg)/g, ".webp")
+      : "file.webp",
+    data: buf,
+    size: buf.length,
+  });
+
 async function compress(
   id: string,
   file: File,
@@ -187,13 +206,50 @@ async function compress(
         data: buffer,
         size: buffer.length,
       });
+    } else if (config.compressor === "imagemin") {
+      const filename = file.originalFilename || "";
+      resolveCompress(
+        resolve,
+        { id, filename },
+        await useImagemin(file, config)
+      );
     }
   });
 }
 
-const useJimp = async (img: File, config: Config) => {
+interface Compressor {
+  (img: File, config: Config): Promise<Buffer>;
+}
+
+const useJimp: Compressor = async (img: File, config: Config) => {
   return (await Jimp.read(img.filepath))
     .quality(config.quality)
     .greyscale()
     .getBufferAsync(img.mimetype as string);
+};
+
+const useImagemin: Compressor = async (img: File, config: Config) => {
+  const getBuffer = (ret: Result[]) => ret[0].data;
+  if (config.webp) {
+    return getBuffer(
+      await imagemin([img.filepath], {
+        destination: "build/images",
+        plugins: [imageminWebp({ quality: config.quality })],
+      })
+    );
+  }
+
+  return getBuffer(
+    await imagemin([img.filepath], {
+      destination: "build/images",
+      plugins: [
+        imageminMozjpeg({
+          quality: config.quality,
+        }),
+        imageminPngquant({
+          quality: [(config.quality) / 100, (config.quality) / 100],
+        }),
+      ],
+    })
+  );
 };
