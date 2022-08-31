@@ -136,83 +136,15 @@ async function compress(
         webp: false,
         compressor: "sharp",
       };
+
+    const filename = file.originalFilename || "";
+    const originData = { id, filename };
     if (config.compressor === "sharp") {
-      const _s = sharp(file.filepath);
-      if (config.webp) {
-        _s.webp({ quality: config.quality, force: true }).toBuffer(
-          (err, buffer, info) => {
-            if (err) return reject(err);
-            const filename = file.originalFilename;
-            resolve({
-              id,
-              fileName: filename
-                ? filename.replace(/(.png)|(.jpg)|(.jpeg)/g, ".webp")
-                : "file.webp",
-              data: buffer,
-              size: buffer.length,
-            });
-          }
-        );
-        return;
-      }
-      if (file.mimetype === "image/png") {
-        _s.png({
-          quality: config.quality,
-          compressionLevel: 9,
-          force: true,
-        }).toBuffer((err, buffer, info) => {
-          if (err) return reject(err);
-          resolve({
-            id,
-            fileName: file.originalFilename
-              ? file.originalFilename.replace(
-                  /(\.png)|(\.jpg)|(\.jpeg)/,
-                  ".png"
-                )
-              : "file.png",
-            data: buffer,
-            size: buffer.length,
-          });
-        });
-      } else if (
-        file.mimetype === "image/jpg" ||
-        file.mimetype === "image/jpeg"
-      ) {
-        _s.jpeg({ quality: config.quality, force: true }).toBuffer(
-          (err, buffer, info) => {
-            if (err) return reject(err);
-            resolve({
-              id,
-              fileName: file.originalFilename
-                ? file.originalFilename.replace(
-                    /(\.png)|(\.jpg)|(\.jpeg)/,
-                    ".jpeg"
-                  )
-                : "file.jpeg",
-              data: buffer,
-              size: buffer.length,
-            });
-          }
-        );
-      }
+      resolveCompress(resolve, originData, await useSharp(file, config));
     } else if (config.compressor === "jimp") {
-      const buffer = await useJimp(file, config);
-      const filename = file.originalFilename;
-      return resolve({
-        id,
-        fileName: filename
-          ? filename.replace(/(.png)|(.jpg)|(.jpeg)/g, ".webp")
-          : "file.webp",
-        data: buffer,
-        size: buffer.length,
-      });
+      resolveCompress(resolve, originData, await useJimp(file, config));
     } else if (config.compressor === "imagemin") {
-      const filename = file.originalFilename || "";
-      resolveCompress(
-        resolve,
-        { id, filename },
-        await useImagemin(file, config)
-      );
+      resolveCompress(resolve, originData, await useImagemin(file, config));
     }
   });
 }
@@ -220,6 +152,42 @@ async function compress(
 interface Compressor {
   (img: File, config: Config): Promise<Buffer>;
 }
+
+const useSharp: Compressor = async (img: File, config: Config) => {
+  const _s = sharp(img.filepath);
+  if (config.webp) {
+    return await new Promise((resolve, reject) => {
+      _s.webp({ quality: config.quality, force: true }).toBuffer(
+        (err, buffer, info) => {
+          if (err) return reject(err);
+          return resolve(buffer);
+        }
+      );
+    });
+  }
+  if (img.mimetype === "image/png") {
+    return await new Promise((resolve, reject) => {
+      _s.png({
+        quality: config.quality,
+        compressionLevel: 9,
+        force: true,
+      }).toBuffer((err, buffer, info) => {
+        if (err) return reject(err);
+        return resolve(buffer);
+      });
+    });
+    // } else if (img.mimetype === "image/jpg" || img.mimetype === "image/jpeg") {
+  } else {
+    return await new Promise((resolve, reject) => {
+      _s.jpeg({ quality: config.quality, force: true }).toBuffer(
+        (err, buffer, info) => {
+          if (err) return reject(err);
+          return resolve(buffer);
+        }
+      );
+    });
+  }
+};
 
 const useJimp: Compressor = async (img: File, config: Config) => {
   return (await Jimp.read(img.filepath))
@@ -246,7 +214,7 @@ const useImagemin: Compressor = async (img: File, config: Config) => {
           quality: config.quality,
         }),
         imageminPngquant({
-          quality: [(config.quality) / 100, (config.quality) / 100],
+          quality: [config.quality / 100, config.quality / 100],
         }),
       ],
     })
