@@ -1,20 +1,27 @@
 import type { NextApiRequest, NextApiResponse, NextConfig } from "next";
 import sharp from "sharp";
+import Jimp from "jimp";
 import { perf } from "../../../shared/perf";
 import formidable, { File } from "formidable";
 
 // !REFACTOR
-type FileConfig = {
+type Config = {
   quality: number;
   webp: boolean;
-  compressor: "sharp" | "imagemin" | "jimp" | "gm";
-} | null;
+  compressor: "sharp" | "imagemin" | "jimp" | "gm" | "compression";
+};
 
 type Files = {
   id: string;
   file: File | null;
-  config: FileConfig;
+  config: Config;
 }[];
+
+const defaultConfig: Config = {
+  quality: 75,
+  webp: false,
+  compressor: "sharp",
+};
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<any>
@@ -29,7 +36,7 @@ export default async function handler(
         files[idx] = {
           id: "",
           file: null,
-          config: null,
+          config: defaultConfig,
         };
       }
       files[idx].file = file;
@@ -41,7 +48,7 @@ export default async function handler(
           files[idx] = {
             id: "",
             file: null,
-            config: null,
+            config: defaultConfig,
           };
         }
         files[idx].id = value;
@@ -52,7 +59,7 @@ export default async function handler(
           files[idx] = {
             id: "",
             file: null,
-            config: null,
+            config: defaultConfig,
           };
         }
         files[idx].config = JSON.parse(value);
@@ -101,12 +108,12 @@ type Compressed = {
 async function compress(
   id: string,
   file: File,
-  config: FileConfig
+  config: Config
 ): Promise<Compressed> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     if (!config)
       config = {
-        quality: 80,
+        quality: 75,
         webp: false,
         compressor: "sharp",
       };
@@ -169,6 +176,24 @@ async function compress(
           }
         );
       }
+    } else if (config.compressor === "jimp") {
+      const buffer = await useJimp(file, config);
+      const filename = file.originalFilename;
+      return resolve({
+        id,
+        fileName: filename
+          ? filename.replace(/(.png)|(.jpg)|(.jpeg)/g, ".webp")
+          : "file.webp",
+        data: buffer,
+        size: buffer.length,
+      });
     }
   });
 }
+
+const useJimp = async (img: File, config: Config) => {
+  return (await Jimp.read(img.filepath))
+    .quality(config.quality)
+    .greyscale()
+    .getBufferAsync(img.mimetype as string);
+};

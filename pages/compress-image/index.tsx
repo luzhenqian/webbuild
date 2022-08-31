@@ -29,10 +29,28 @@ type Files = (File & {
 })[];
 
 const fileTypes = ["JPG", "JPEG", "PNG"];
-
+const defaultQuality = 75;
 const toBase64 = (arr: Buffer) => {
   return Buffer.from(arr).toString("base64");
 };
+const compressor = [
+  {
+    name: "sharp",
+    supportedWebp: true,
+  },
+  {
+    name: "jimp",
+    supportedWebp: false,
+  },
+  // {
+  //   name: "sharp",
+  //   supportedWebp: true,
+  // },
+  // {
+  //   name: "sharp",
+  //   supportedWebp: true,
+  // },
+];
 
 const Transform: NextPage = () => {
   const [files, setFiles] = useState<Files>([]);
@@ -49,7 +67,7 @@ const Transform: NextPage = () => {
       file.loading = true;
       file.config = {
         webp: false,
-        quality: 80,
+        quality: defaultQuality,
         compressor: "sharp",
       };
       file.compare = false;
@@ -110,9 +128,9 @@ const Transform: NextPage = () => {
       <main>
         <div className="flex flex-col gap-2">
           {files.length > 0 ? (
-            <div className="flex gap-1 md:gap-4 text-sm md:text-md items-center font-bold text-gray-700 text-center border-b py-1">
+            <div className="flex items-center gap-1 py-1 text-sm font-bold text-center text-gray-700 border-b md:gap-4 md:text-md">
               <div className="w-20">view</div>
-              <div className=" w-24  md:w-60">name &amp; size</div>
+              <div className="w-24 md:w-60">name &amp; size</div>
               <div className="flex-1 ">ratio</div>
               <div className="hidden md:block md:w-40 ">quality</div>
               <div className="hidden md:block md:w-32 ">convert to webp</div>
@@ -122,7 +140,7 @@ const Transform: NextPage = () => {
           ) : null}
 
           <div
-            className="fixed flex w-screen h-screen top-0 border bottom-0 left-0 right-0 justify-center items-center glass-bg"
+            className="fixed top-0 bottom-0 left-0 right-0 flex items-center justify-center w-screen h-screen border glass-bg"
             style={{ display: beforeUrl && afterUrl ? "flex" : "none" }}
             onClick={(evt) => {
               if (imageCompareRef.current) {
@@ -149,12 +167,12 @@ const Transform: NextPage = () => {
           </div>
 
           {files.map((file, i) => (
-            <div key={file.name} className="flex gap-1 md:gap-4 items-center">
+            <div key={file.name} className="flex items-center gap-1 md:gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={file.src}
                 alt={file.name}
-                className="w-20 h-12 rounded-sm object-contain"
+                className="object-contain w-20 h-12 rounded-sm"
                 onClick={() => {
                   if (!file.compressed) return;
                   setBeforeUrl(file.src);
@@ -166,7 +184,7 @@ const Transform: NextPage = () => {
                 <>
                   <div className="flex flex-col justify-between w-24 text-xs md:text-md md:w-60">
                     <div
-                      className=" overflow-hidden text-ellipsis whitespace-nowrap font-semibold"
+                      className="overflow-hidden font-semibold text-ellipsis whitespace-nowrap"
                       title={file.name}
                     >
                       {file.name}
@@ -180,11 +198,11 @@ const Transform: NextPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex-1 text-center text-xl font-bold text-green-600">
+                  <div className="flex-1 text-xl font-bold text-center text-green-600">
                     {ratio(file.size, file.compressed.size)}%
                   </div>
 
-                  <div className="md:flex items-center gap-1 hidden md:visible md:w-40">
+                  <div className="items-center hidden gap-1 md:flex md:visible md:w-40">
                     <input
                       type={"range"}
                       min={1}
@@ -204,9 +222,14 @@ const Transform: NextPage = () => {
                     <span>{file.config.quality}</span>
                   </div>
 
-                  <div className="md:flex items-center gap-1 justify-center hidden md:visible md:w-32">
+                  <div className="items-center justify-center hidden gap-1 md:flex md:visible md:w-32">
                     <input
                       type={"checkbox"}
+                      disabled={
+                        !compressor.find(
+                          (c) => c.name === file.config.compressor
+                        )?.supportedWebp
+                      }
                       onChange={throttle((evt) => {
                         file.config.webp = evt.target.checked;
                         setLoading(true);
@@ -218,11 +241,21 @@ const Transform: NextPage = () => {
                     />
                   </div>
 
-                  <div className="md:flex items-center gap-1 justify-center hidden md:visible md:w-32">
-                    <select>
+                  <div className="items-center justify-center hidden gap-1 md:flex md:visible md:w-32">
+                    <select
+                      onChange={(evt) => {
+                        file.config.compressor = evt.target.value;
+                        setLoading(true);
+                        compress([file]).then((data) => {
+                          setFiles((files) => fillCompressed(files, data));
+                          setLoading(false);
+                        });
+                      }}
+                    >
                       <option>sharp</option>
-                      <option disabled>jimp</option>
+                      <option>jimp</option>
                       <option disabled>imagemin</option>
+                      <option disabled>compression</option>
                     </select>
                   </div>
 
@@ -246,7 +279,7 @@ const Transform: NextPage = () => {
 
         {files.length > 0 ? (
           !loading ? (
-            <div className="flex flex-col md:flex-row items-center gap-4 justify-end mt-4 text-lg font-semibold">
+            <div className="flex flex-col items-center justify-end gap-4 mt-4 text-lg font-semibold md:flex-row">
               <div>
                 <span>
                   {beforeSize}
@@ -261,7 +294,7 @@ const Transform: NextPage = () => {
               <div>Total Reduced: {totalReduced}% </div>
             </div>
           ) : (
-            <div className="flex items-center gap-4 justify-end mt-4 text-lg font-semibold">
+            <div className="flex items-center justify-end gap-4 mt-4 text-lg font-semibold">
               loading......
             </div>
           )
