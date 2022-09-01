@@ -153,7 +153,7 @@ const Transform: NextPage = () => {
           >
             <div
               ref={imageCompareRef}
-              className="image-compare w-[80%] max-h-full max-w-full flex"
+              className="flex w-auto max-w-[80%] max-h-full image-compare"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={beforeUrl} alt="" />
